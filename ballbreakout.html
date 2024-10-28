@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Breaker Game</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            display: block;
+            margin: auto;
+        }
+        #gameover, #liferemaining, #gamelevel {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="gameover"></div>
+    <div id="liferemaining">Lives: 3</div>
+    <div id="gamelevel">Level: 1</div>
+    <button id="nextLevelBtn" style="display: none;">Next Level</button>
+
+    <script>
+        const WIDTH = 500,
+              HEIGHT = 500,
+              canvas = document.getElementById('canvas'),
+              context = canvas.getContext('2d');
+
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+
+        // Variables
+        var blockArr = [],
+            blockIndex = 0,
+            numBlockCol = 7,
+            numBlockRow = 4,
+            colWidth = WIDTH / numBlockCol,
+            padding = colWidth / 4,
+            isGameOver = false,
+            gameLevel = 1,
+            numObBlocksHit = 0,
+            isLeft = false,
+            isRight = false,
+            isLevelCompleted = false;
+
+        // Block Properties
+        var blockProp = {
+            w: colWidth,
+            h: padding
+        };
+
+        // Player Properties
+        var PlayerProp = {
+            x: (WIDTH / 2 - colWidth / 2),
+            y: HEIGHT - (1.5 * padding),
+            w: colWidth,
+            h: padding
+        };
+
+        // Ball Properties
+        var ballProp = {
+            x: WIDTH / 2,
+            y: HEIGHT / 2,
+            radius: padding / 3
+        };
+
+        // Function objects
+        var player = new Player(PlayerProp.x, PlayerProp.y, PlayerProp.w, PlayerProp.h);
+        var ball = new Ball(ballProp.x, ballProp.y, ballProp.radius);
+
+        // Function to go to the next level
+        function nextlevel() {
+            if (isLevelCompleted) {
+                if (gameLevel < 4) {
+                    gameLevel++;
+                    if (gameLevel == 4) {
+                        document.getElementById('gameover').innerHTML = 'Hurrah! You win the game!';
+                        isGameOver = true;
+                    }
+                    numBlockCol = (gameLevel == 4) ? 8 : numBlockCol + 2; // Adjust number of columns
+                    colWidth = WIDTH / numBlockCol;
+                    padding = colWidth / 4;
+
+                    // Initialize block
+                    blockProp.w = colWidth;
+                    blockProp.h = padding;
+
+                    // Initialize Player
+                    PlayerProp.x = (WIDTH / 2 - colWidth / 2);
+                    PlayerProp.y = HEIGHT - (1.5 * padding);
+                    PlayerProp.w = colWidth;
+                    PlayerProp.h = padding;
+
+                    // Initialize ball
+                    ballProp.x = WIDTH / 2;
+                    ballProp.y = HEIGHT / 2;
+                    ballProp.radius = padding / 3;
+
+                    InitializeBlock();
+                    ball = new Ball(ballProp.x, ballProp.y, ballProp.radius);
+                    player = new Player(PlayerProp.x, PlayerProp.y, PlayerProp.w, PlayerProp.h);
+
+                    isGameOver = false;
+                    isLevelCompleted = false;
+                    gameLoop();
+                }
+            }
+        }
+
+        InitializeBlock();
+        window.addEventListener('keydown', (e) => {
+            if (e.keyCode == 37) {
+                isLeft = true;
+                isRight = false;
+            } else if (e.keyCode == 39) {
+                isLeft = false;
+                isRight = true;
+            }
+        });
+
+        window.addEventListener('keyup', () => {
+            isLeft = false;
+            isRight = false;
+        });
+
+        // Initialize the block
+        function InitializeBlock() {
+            for (let i = 0; i < numBlockCol; i++) {
+                for (let j = 0; j < numBlockRow; j++) {
+                    blockArr[blockIndex] = new Block(
+                        padding / 2 + i * (colWidth) - colWidth / 2,
+                        0.7 * padding + j * (padding), // Vertical position
+                        blockProp.w - padding,
+                        blockProp.h,
+                        true
+                    );
+                    blockIndex++;
+                }
+            }
+        }
+
+        // Game Loop
+        function gameLoop() {
+            context.clearRect(0, 0, WIDTH, HEIGHT);
+            player.draw();
+            ball.draw();
+            ball.update();
+
+            // Collision with blocks
+            for (let i = 0; i < blockArr.length; i++) {
+                if (blockArr[i].isVisible) {
+                    blockArr[i].draw();
+                    if (checkCollision(ball, blockArr[i])) {
+                        ball.reverseY();
+                        blockArr[i].isVisible = false;
+                        numObBlocksHit++;
+                    }
+                }
+            }
+
+            // Collision with player
+            if (checkCollision(ball, player)) {
+                ball.reverseY();
+            }
+
+            // Collision with walls
+            if (ball.x - ball.radius < 0 || ball.x + ball.radius > WIDTH) {
+                ball.reverseX();
+            }
+            if (ball.y - ball.radius < 0) {
+                ball.reverseY();
+            }
+
+            // Game Over
+            if (ball.y + ball.radius > HEIGHT) {
+                isGameOver = true;
+                document.getElementById('gameover').innerHTML = 'Game Over!';
+                document.getElementById('nextLevelBtn').style.display = 'none';
+            }
+
+            // Level Completion
+            if (numObBlocksHit == numBlockCol * numBlockRow) {
+                isLevelCompleted = true;
+                document.getElementById('nextLevelBtn').style.display = 'block';
+            }
+
+            // Update player position
+            if (isLeft) {
+                player.x -= 5;
+            }
+            if (isRight) {
+                player.x += 5;
+            }
+
+            // Boundary check for player
+            if (player.x < 0) {
+                player.x = 0;
+            }
+            if (player.x + player.w > WIDTH) {
+                player.x = WIDTH - player.w;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Collision detection
+        function checkCollision(obj1, obj2) {
+            if (obj1.x + obj1.radius > obj2.x &&
+                obj1.x - obj1.radius < obj2.x + obj2.w &&
+                obj1.y + obj1.radius > obj2.y &&
+                obj1.y - obj1.radius < obj2.y + obj2.h) {
+                return true;
+            }
+            return false;
+        }
+
+        // Ball constructor
+        function Ball(x, y, radius) {
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+            this.speedX = 2;
+            this.speedY = 2;
+
+            this.draw = function() {
+                context.beginPath();
+                context.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+                context.fillStyle = 'blue';
+                context.fill();
+                context.closePath();
+            };
+
+            this.update = function() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+            };
+
+            this.reverseX = function() {
+                this.speedX *= -1;
+            };
+
+            this.reverseY = function() {
+                this.speedY *= -1;
+            };
+        }
+
+        // Player constructor
+        function Player(x, y, w, h) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+
+            this.draw = function() {
+                context.fillStyle = 'green';
+                context.fillRect(this.x, this.y, this.w, this.h);
+            };
+        }
+
+        // Block constructor
+        function Block(x, y, w, h, isVisible) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.isVisible = isVisible;
+
+            this.draw = function() {
+                context.fillStyle = 'red';
+                context.fillRect(this.x, this.y, this.w, this.h);
+            };
+        }
+
+        document.getElementById('nextLevelBtn').addEventListener('click', nextlevel);
+        gameLoop();
+    </script>
+</body>
+</html>
